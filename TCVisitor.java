@@ -62,7 +62,7 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
         h.add(m.f2.f0.tokenImage);
         m.f8.accept(this);
         String temp = m.f10.accept(this);
-        String temp2 = m.f2.accept(this);
+        String temp2 = getMethType();
         if(!temp.equals(temp2)){
             System.out.println("Invalid Return Type in "+m.f2.f0.tokenImage);
             System.exit(-2);
@@ -82,7 +82,7 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
         System.out.println("Assignment Statement");
 //        check if types are different
         String temp = a.f0.accept(this);
-        if(!temp.equals(a.f2.accept(this))){
+        if(temp == null || !temp.equals(a.f2.accept(this))){
             System.out.println("Invalid Assignment in "+a.f0.f0.tokenImage);
             System.exit(-2);
         }
@@ -321,8 +321,20 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
      */
     public String visit(MessageSend c){
         System.out.println("MessageSend");
-//        check if f0 has method f2
 
+        String str;
+
+//        check if f0 has method f2
+        if((str = checkMethod(c.f0.accept(this), c.f2.f0.tokenImage)) == null){
+            System.out.println("Method "+c.f2.f0.tokenImage+" not found in class "+c.f0.accept(this));
+            System.exit(-2);
+        }
+
+//        check if arguments are correct(number - type)
+//            somehow in expresionlist ?
+
+//        return the type of the function
+        return str;
     }
 
     /**
@@ -331,18 +343,55 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
      */
     public String visit(Identifier c){
         h.add(c.f0.tokenImage);
-        String str = getType();
+        String str = getVarType();
         h.remove(c.f0.tokenImage);
         return str;
     }
 
-    private String getType(){
+    public String visit(IntegerLiteral c){
+        return "int";
+    }
 
-        if(h.size()!=3) return "null";
+    public String visit(TrueLiteral c){
+        return "boolean";
+    }
+
+    public String visit(FalseLiteral c){
+        return "boolean";
+    }
+
+    public String visit(ThisExpression c){
+        return h.get(0);
+    }
+
+    public String visit(BracketExpression c){
+        return c.f1.accept(this);
+    }
+
+    private String getVarType(){
+
+        if(h.size()!=3) return null;
         for (String s : h) {
-            System.out.println(s);
+            System.out.print(s+" ");
         }
-//        ArrayList<Object> map =((HashMap<String, ArrayList<Object>>) STVisitor.getClassMap().get(h.get(0)).get(2)).get(h.get(1));
-        return ((String) (((HashMap<String, ArrayList<Object>>) ((HashMap<String, ArrayList<Object>>) STVisitor.getClassMap().get(h.get(0)).get(2)).get(h.get(1)).get(1)).get(h.get(2)).get(0)));
+        System.out.print('\n');
+        return STVisitor.getVarType(h);
+    }
+
+    private String getMethType(){
+        return (String) STVisitor.getMethArray(h.get(0), h.get(1)).get(0);
+    }
+
+    private String checkMethod(String className, String method){
+
+        String str;
+//        check if method exists in object's class or any of the parent classes
+        if(STVisitor.getMethArray(className, method)!=null){
+            return (String) STVisitor.getMethArray(className, method).get(0);
+        }
+        else if((str = checkMethod(STVisitor.getSuperClass(className), method)) != null){
+            return str;
+        }
+        return null;
     }
 }

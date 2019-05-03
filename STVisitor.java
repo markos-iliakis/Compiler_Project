@@ -12,6 +12,41 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
         return ClassMap;
     }
 
+    public static ArrayList<Object> getMethArray(String className, String method){
+        if(ClassMap.get(className) == null) return null;
+        if(((HashMap<String, ArrayList<Object>>) ClassMap.get(className).get(2)).get(method) == null) return null;
+        return ((HashMap<String, ArrayList<Object>>) ClassMap.get(className).get(2)).get(method);
+    }
+
+    public static String getSuperClass(String className){
+        if(ClassMap.get(className) == null) return null;
+        return (String) ClassMap.get(className).get(0);
+    }
+
+    public static String checkClassVars(String className, String var){
+        String str, upper;
+        if((str = (String) (((HashMap<String, ArrayList<Object>>) ClassMap.get(className).get(1)).get(var).get(0))) != null){
+            return str;
+        }
+        else if((upper = getSuperClass(className))!=null){
+            return checkClassVars(upper, var);
+        }
+        return null;
+    }
+
+//    public static String checkArgs(){
+//
+//    }
+
+    public static String getVarType(ArrayList<String> list){
+        ArrayList<Object> methList;
+        if((methList = getMethArray(list.get(0), list.get(1))) == null) return null;
+        if(((HashMap<String, ArrayList<Object>>) methList.get(1)).get(list.get(2)) == null) {
+            return checkClassVars(list.get(0), list.get(2));
+        }
+        return (String) ((HashMap<String, ArrayList<Object>>) methList.get(1)).get(list.get(2)).get(0);
+    }
+
     /**
      * f0 -> "class"
      * f1 -> Identifier()
@@ -104,12 +139,14 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
 //        take the map of the children
         HashMap<String, ArrayList<Object>> VarMap = new HashMap<>();
         m.f4.accept(this, VarMap);
+        int count = VarMap.size();
         m.f7.accept(this, VarMap);
 
 //        make the array list
         ArrayList<Object> a = new ArrayList<>();
         a.add(m.f1.accept(this, h));
         a.add(VarMap);
+        a.add(count);
 
 //        insert
         h.put(m.f2.f0.tokenImage, a);
@@ -146,11 +183,11 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
             System.out.println("Variable "+f.f1.f0.tokenImage+" already exists");
             System.exit(-1);
         }
-        else {
-            ArrayList<Object> a = new ArrayList<>();
-            a.add(f.f0.accept(this, h));
-            h.put(f.f1.f0.tokenImage, a);
-        }
+
+        ArrayList<Object> a = new ArrayList<>();
+        a.add(f.f0.accept(this, h));
+        h.put(f.f1.f0.tokenImage, a);
+        System.out.println(f.f1.f0.tokenImage +" "+ a.get(0));
         return "";
     }
 
