@@ -1,10 +1,10 @@
 import syntaxtree.*;
-import visitor.GJVoidDepthFirst;
+import visitor.GJDepthFirst;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class STVisitor extends GJVoidDepthFirst<HashMap<String, ArrayList<Object>>> {
+public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Object>>> {
 
     static private HashMap<String, ArrayList<Object>> ClassMap = new HashMap<>();
 
@@ -22,7 +22,7 @@ public class STVisitor extends GJVoidDepthFirst<HashMap<String, ArrayList<Object
      * f6 -> ( MethodDeclaration() )*
      * f7 -> "}"
      */
-    public void visit(ClassExtendsDeclaration c, HashMap<String, ArrayList<Object>> h){
+    public String visit(ClassExtendsDeclaration c, HashMap<String, ArrayList<Object>> h){
         System.out.println("ClassExt");
 
         if(ClassMap.containsKey(c.f1.f0.tokenImage)){
@@ -45,6 +45,7 @@ public class STVisitor extends GJVoidDepthFirst<HashMap<String, ArrayList<Object
 
 //        insert
         ClassMap.put(c.f1.f0.tokenImage, a);
+        return "";
     }
 
     /**
@@ -55,7 +56,7 @@ public class STVisitor extends GJVoidDepthFirst<HashMap<String, ArrayList<Object
      * f4 -> ( MethodDeclaration() )*
      * f5 -> "}"
      */
-    public void visit(ClassDeclaration c, HashMap<String, ArrayList<Object>> h){
+    public String visit(ClassDeclaration c, HashMap<String, ArrayList<Object>> h){
         if(ClassMap.containsKey(c.f1.f0.tokenImage)){
             System.out.println("Class "+c.f1.f0.tokenImage+" already exists");
             System.exit(-1);
@@ -75,6 +76,7 @@ public class STVisitor extends GJVoidDepthFirst<HashMap<String, ArrayList<Object
 
 //        insert
         ClassMap.put(c.f1.f0.tokenImage, a);
+        return "";
     }
 
     /**
@@ -92,8 +94,9 @@ public class STVisitor extends GJVoidDepthFirst<HashMap<String, ArrayList<Object
      * f11 -> ";"
      * f12 -> "}"
      */
-    public void visit(MethodDeclaration m, HashMap<String, ArrayList<Object>> h){
-        if(h.containsKey(m.f2.f0.tokenImage) && h.get(m.f2.f0.tokenImage).contains(m.f1.f0.which)){
+    public String visit(MethodDeclaration m, HashMap<String, ArrayList<Object>> h){
+//        System.out.println("Method "+m.f2.f0.tokenImage+" "+m.f1.accept(this, h));
+        if(h.containsKey(m.f2.f0.tokenImage)){
             System.out.println("Method "+m.f2.f0.tokenImage+" already exists");
             System.exit(-1);
         }
@@ -105,11 +108,12 @@ public class STVisitor extends GJVoidDepthFirst<HashMap<String, ArrayList<Object
 
 //        make the array list
         ArrayList<Object> a = new ArrayList<>();
-        a.add(m.f1.f0.which);
+        a.add(m.f1.accept(this, h));
         a.add(VarMap);
 
 //        insert
         h.put(m.f2.f0.tokenImage, a);
+        return "";
     }
 
     /**
@@ -117,28 +121,71 @@ public class STVisitor extends GJVoidDepthFirst<HashMap<String, ArrayList<Object
      * f1 -> Identifier()
      * f2 -> ";"
      */
-    public void visit(VarDeclaration v, HashMap<String, ArrayList<Object>> h){
+    public String visit(VarDeclaration v, HashMap<String, ArrayList<Object>> h){
+//        System.out.println("Variable "+v.f1.f0.tokenImage+" "+v.f0.accept(this, h));
         if(h.containsKey(v.f1.f0.tokenImage)){
             System.out.println("Variable "+v.f1.f0.tokenImage+" already exists");
             System.exit(-1);
         }
         else {
             ArrayList<Object> a = new ArrayList<>();
-            a.add(v.f0.f0.which);
+            a.add(v.f0.accept(this, h));
             h.put(v.f1.f0.tokenImage, a);
         }
+        return "";
     }
 
-    public void visit(FormalParameter f, HashMap<String, ArrayList<Object>> h){
+    /**
+     * Grammar production:
+     * f0 -> Type()
+     * f1 -> Identifier()
+     */
+    public String visit(FormalParameter f, HashMap<String, ArrayList<Object>> h){
+//        System.out.println("Parameter Variable "+f.f1.f0.tokenImage+" "+f.f0.accept(this, h));
         if(h.containsKey(f.f1.f0.tokenImage)){
             System.out.println("Variable "+f.f1.f0.tokenImage+" already exists");
             System.exit(-1);
         }
         else {
             ArrayList<Object> a = new ArrayList<>();
-            a.add(f.f0.f0.which);
+            a.add(f.f0.accept(this, h));
             h.put(f.f1.f0.tokenImage, a);
         }
+        return "";
+    }
+
+    /**
+     * Grammar production:
+     * f0 -> "int"
+     * f1 -> "["
+     * f2 -> "]"
+     */
+    public String visit(ArrayType c, HashMap<String, ArrayList<Object>> h){
+        return "int[]";
+    }
+
+    /**
+     * Grammar production:
+     * f0 -> "int"
+     */
+    public String visit(IntegerType c, HashMap<String, ArrayList<Object>> h){
+        return "int";
+    }
+
+    /**
+     * Grammar production:
+     * f0 -> "boolean"
+     */
+    public String visit(BooleanType c, HashMap<String, ArrayList<Object>> h){
+        return "boolean";
+    }
+
+    /**
+     * Grammar production:
+     * f0 -> <IDENTIFIER>
+     */
+    public String visit(Identifier c, HashMap<String, ArrayList<Object>> h){
+        return c.f0.tokenImage;
     }
 
 //    public int checkVirtuals(HashMap<String, ArrayList<Object>> MethMap, String superClass){
