@@ -23,6 +23,10 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
         order.get(2).add(methName);
     }
 
+    static public int getArgNum(String className, String methName){
+        return (int) getMethArray(className, methName).get(2);
+    }
+
 //    static private void orderAddmethvar(String methvarName){
 //        order.get(3).add(methvarName);
 //    }

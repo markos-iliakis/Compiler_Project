@@ -331,7 +331,12 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
         }
 
 //        check if arguments are correct(number - type)
-//            somehow in expresionlist ?
+        int argNum = STVisitor.getArgNum(c.f0.accept(this), c.f2.f0.tokenImage);
+        if(argNum > 0 && !c.f4.present()){
+            System.out.println("Method "+c.f2.f0.tokenImage+" need more arguments");
+            System.exit(-2);
+        }
+
 
 //        return the type of the function
         return str;
