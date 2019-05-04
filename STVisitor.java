@@ -1,12 +1,12 @@
 import syntaxtree.*;
 import visitor.GJDepthFirst;
 
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.*;
 
 public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Object>>> {
 
     static private HashMap<String, ArrayList<Object>> ClassMap = new HashMap<>();
+    static private int varIndex=0, methIndex=0;
 
     public static HashMap<String, ArrayList<Object>> getClassMap() {
         return ClassMap;
@@ -45,6 +45,25 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
             return checkClassVars(list.get(0), list.get(2));
         }
         return (String) ((HashMap<String, ArrayList<Object>>) methList.get(1)).get(list.get(2)).get(0);
+    }
+
+    public static void makeIndexes(){
+        HashMap<String, ArrayList<Integer>> map = new HashMap<>();
+
+        Iterator it = ClassMap.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry pair = (Map.Entry)it.next();
+
+//            Initialize new entry
+            map.put((String) pair.getKey(), new ArrayList<Integer>(Arrays.asList(0,0)));
+
+//            Find var offsets
+
+//            Find method offsets
+
+            System.out.println(pair.getKey() + "." + pair.getValue());
+            it.remove(); // avoids a ConcurrentModificationException
+        }
     }
 
     /**
