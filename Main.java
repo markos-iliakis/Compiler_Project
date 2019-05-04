@@ -20,6 +20,9 @@ class Main {
             Goal root = parser.Goal();
             root.accept(eval, null);
 
+//            Print Indexes
+            STVisitor.makeIndexes();
+
 //            Type Checking
             fis2 = new FileInputStream(args[0]);
             MiniJavaParser parser2 = new MiniJavaParser(fis2);
