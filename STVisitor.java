@@ -7,9 +7,10 @@ import java.util.*;
 
 public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Object>>> {
 
-    static private HashMap<String, ArrayList<Object>> ClassMap = new HashMap<>();
+    static private HashMap<String, ArrayList<Object>> ClassMap;
     static private ArrayList<ArrayList<String>> order = new ArrayList<>(Arrays.asList(new ArrayList<>(), new ArrayList<>(), new ArrayList<>()));
-    static boolean flag = true;
+    private static boolean flag = false;
+    private static ArrayList<String> args;
 
     static private void orderAddclass(String className){
         order.get(0).add(className);
@@ -23,21 +24,27 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
         order.get(2).add(methName);
     }
 
-    static public int getArgNum(String className, String methName){
-        return (int) getMethArray(className, methName).get(2);
+    static public void deleteClassMap(){
+        ClassMap = null;
     }
 
-//    static private void orderAddmethvar(String methvarName){
-//        order.get(3).add(methvarName);
-//    }
+    static public void newClassMap(){
+        ClassMap = new HashMap<>();
+    }
 
-    public static HashMap<String, ArrayList<Object>> getClassMap() {
-        return ClassMap;
+    public static int getArgNum(String className, String methName){
+        if(getMethArray(className, methName) != null)
+            return ((ArrayList<String>) getMethArray(className, methName).get(2)).size();
+        else
+            return getArgNum(getSuperClass(className), methName);
     }
 
     public static ArrayList<Object> getMethArray(String className, String method){
+
         if(ClassMap.get(className) == null) return null;
+
         if(((HashMap<String, ArrayList<Object>>) ClassMap.get(className).get(2)).get(method) == null) return null;
+
         return ((HashMap<String, ArrayList<Object>>) ClassMap.get(className).get(2)).get(method);
     }
 
@@ -48,37 +55,86 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
 
     public static boolean checkBaseClassFunction(String function, String className){
         String base;
-        if(((HashMap<String, ArrayList<Object>>) ClassMap.get(className).get(2)).containsKey(function)){
+        if(((HashMap<String, ArrayList<Object>>) ClassMap.get(className).get(2)).containsKey(function))
             return true;
-        }
-        else if((base = getSuperClass(className)) != null){
+        else if((base = getSuperClass(className)) != null)
             return checkBaseClassFunction(function, base);
-        }
-        return false;
+        else
+            return false;
     }
 
     public static String checkClassVars(String className, String var){
-        String str, upper;
-        if((str = (String) (((HashMap<String, ArrayList<Object>>) ClassMap.get(className).get(1)).get(var).get(0))) != null){
-            return str;
-        }
-        else if((upper = getSuperClass(className))!=null){
+        String upper;
+        ArrayList<Object> str;
+        if((str = (((HashMap<String, ArrayList<Object>>) ClassMap.get(className).get(1)).get(var))) != null)
+            return (String) str.get(0);
+
+        else if((upper = getSuperClass(className))!=null)
             return checkClassVars(upper, var);
-        }
-        return null;
+
+        else
+            return null;
     }
 
-//    public static String checkArgs(){
-//
-//    }
+    public static ArrayList<String> getArgs(String className, String method){
+        return (ArrayList<String>) getMethArray(className, method).get(2);
+    }
 
-    public static String getVarType(ArrayList<String> list){
-        ArrayList<Object> methList;
-        if((methList = getMethArray(list.get(0), list.get(1))) == null) return null;
-        if(((HashMap<String, ArrayList<Object>>) methList.get(1)).get(list.get(2)) == null) {
-            return checkClassVars(list.get(0), list.get(2));
+    private static void checkVirtualization(HashMap<String, ArrayList<Object>> methMap, String baseClass){
+        Iterator it = methMap.entrySet().iterator();
+        String base;
+
+//        for every method
+        while(it.hasNext()){
+            Map.Entry pair = (Map.Entry)it.next();
+
+//            if number of arguments are different
+            if(((HashMap<String, ArrayList<Object>>) ClassMap.get(baseClass).get(2)).containsKey(pair.getKey())){
+                if(((ArrayList<String>) methMap.get(pair.getKey()).get(2)).size() != ((ArrayList<String>) getMethArray(baseClass, (String) pair.getKey()).get(2)).size()){
+                    System.out.println("Virtualization failed");
+                    System.exit(-1);
+                }
+
+//                for every argument check types
+                Iterator it2 = ((ArrayList<String>) methMap.get(pair.getKey()).get(2)).iterator();
+                Iterator it3 = getArgs(baseClass, (String) pair.getKey()).iterator();
+                while(it2.hasNext() && it3.hasNext()){
+                    String type1 = (String) it2.next();
+                    String type2 = (String) it3.next();
+                    if(!type1.equals(type2)){
+                        System.out.println("Virtualization failed");
+                        System.exit(-1);
+                    }
+//                    it2.remove();
+                }
+
+            }else if((base = getSuperClass(baseClass))!=null){
+                checkVirtualization(methMap, base);
+            }
+
         }
-        return (String) ((HashMap<String, ArrayList<Object>>) methList.get(1)).get(list.get(2)).get(0);
+    }
+
+    public static String getVarType(String className, String methName, String varName){
+        ArrayList<Object> methList;
+        if((methList = getMethArray(className, methName)) == null) return null;
+        if(((HashMap<String, ArrayList<Object>>) methList.get(1)).get(varName) == null) {
+            return checkClassVars(className, varName);
+        }
+        return (String) ((HashMap<String, ArrayList<Object>>) methList.get(1)).get(varName).get(0);
+    }
+
+    public static boolean checkClassExists(String className){
+        return ClassMap.containsKey(className);
+    }
+
+    public static boolean isSubclassOf(String subClassName, String superClassName){
+        if(ClassMap.get(subClassName) == null || ClassMap.get(subClassName).get(0) == null)
+            return false;
+        else if(!getSuperClass(subClassName).equals(superClassName))
+            return isSubclassOf(getSuperClass(subClassName), superClassName);
+        else
+            return true;
     }
 
     public static void makeIndexes(){
@@ -152,8 +208,68 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
                 it3.remove();
             }
 
-            it.remove(); // avoids a ConcurrentModificationException
+            it.remove();
         }
+    }
+
+    /**
+     * Grammar production:
+     * f0 -> "class"
+     * f1 -> Identifier()
+     * f2 -> "{"
+     * f3 -> "public"
+     * f4 -> "static"
+     * f5 -> "void"
+     * f6 -> "main"
+     * f7 -> "("
+     * f8 -> "String"
+     * f9 -> "["
+     * f10 -> "]"
+     * f11 -> Identifier()
+     * f12 -> ")"
+     * f13 -> "{"
+     * f14 -> ( VarDeclaration() )*
+     * f15 -> ( Statement() )*
+     * f16 -> "}"
+     * f17 -> "}"
+     */
+    public String visit(MainClass c, HashMap<String, ArrayList<Object>> h) throws Exception {
+
+        HashMap<String, ArrayList<Object>>methMap = new HashMap<>();
+
+        flag = true;
+        orderAddclass(c.f1.f0.tokenImage);
+        orderAddvar("null");
+        orderAddmeth("null");
+        flag = false;
+
+//        take the map of the children
+        HashMap<String, ArrayList<Object>> VarMap = new HashMap<>();
+        args = new ArrayList<>();
+        ArrayList<Object> temp = new ArrayList<>();
+        temp.add(c.f1.f0.tokenImage);
+        VarMap.put(c.f11.f0.tokenImage, temp);
+        c.f14.accept(this, VarMap);
+
+//        make the array list
+        ArrayList<Object> a = new ArrayList<>();
+
+        a.add("void");
+        a.add(VarMap);
+
+//        insert
+        methMap.put("main", a);
+
+//        make the array list
+        ArrayList<Object> a2 = new ArrayList<>();
+        a2.add(null);
+        a2.add(null);
+        a2.add(methMap);
+
+//        insert
+        ClassMap.put(c.f1.f0.tokenImage, a2);
+
+        return "null";
     }
 
     /**
@@ -166,12 +282,14 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * f6 -> ( MethodDeclaration() )*
      * f7 -> "}"
      */
-    public String visit(ClassExtendsDeclaration c, HashMap<String, ArrayList<Object>> h){
-//        System.out.println("ClassExt");
+    public String visit(ClassExtendsDeclaration c, HashMap<String, ArrayList<Object>> h) throws Exception {
 
         if(ClassMap.containsKey(c.f1.f0.tokenImage)){
-            System.out.println("Class "+c.f1.f0.tokenImage+" already exists");
-            System.exit(-1);
+            throw new MyException("Class "+c.f1.f0.tokenImage+" already exists");
+        }
+
+        if(!ClassMap.containsKey(c.f3.f0.tokenImage)){
+            throw new MyException("Base Class "+c.f3.f0.tokenImage+" not exists");
         }
 
 //        take the maps from children
@@ -182,7 +300,7 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
         orderAddvar("null");
         flag = false;
         c.f6.accept(this, MethMap);
-//        checkVirtuals(MethMap, c.f3.f0.tokenImage);
+        checkVirtualization(MethMap, c.f3.f0.tokenImage);
 
 //        make the array list
         ArrayList<Object> a = new ArrayList<>();
@@ -205,10 +323,9 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * f4 -> ( MethodDeclaration() )*
      * f5 -> "}"
      */
-    public String visit(ClassDeclaration c, HashMap<String, ArrayList<Object>> h){
+    public String visit(ClassDeclaration c, HashMap<String, ArrayList<Object>> h) throws Exception{
         if(ClassMap.containsKey(c.f1.f0.tokenImage)){
-            System.out.println("Class "+c.f1.f0.tokenImage+" already exists");
-            System.exit(-1);
+            throw new MyException("Class "+c.f1.f0.tokenImage+" already exists");
         }
 
 //        take the maps from children
@@ -248,24 +365,26 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * f11 -> ";"
      * f12 -> "}"
      */
-    public String visit(MethodDeclaration m, HashMap<String, ArrayList<Object>> h){
-//        System.out.println("Method "+m.f2.f0.tokenImage+" "+m.f1.accept(this, h));
+    public String visit(MethodDeclaration m, HashMap<String, ArrayList<Object>> h) throws Exception{
+
         if(h.containsKey(m.f2.f0.tokenImage)){
-            System.out.println("Method "+m.f2.f0.tokenImage+" already exists");
-            System.exit(-1);
+            throw new MyException("Method "+m.f2.f0.tokenImage+" already exists");
         }
 
 //        take the map of the children
         HashMap<String, ArrayList<Object>> VarMap = new HashMap<>();
+        args = new ArrayList<>();
         m.f4.accept(this, VarMap);
         int count = VarMap.size();
         m.f7.accept(this, VarMap);
 
 //        make the array list
         ArrayList<Object> a = new ArrayList<>();
+
+
         a.add(m.f1.accept(this, h));
         a.add(VarMap);
-        a.add(count);
+        a.add(args);
 
 //        insert
         h.put(m.f2.f0.tokenImage, a);
@@ -278,12 +397,11 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * f1 -> Identifier()
      * f2 -> ";"
      */
-    public String visit(VarDeclaration v, HashMap<String, ArrayList<Object>> h){
-//        System.out.println("Variable "+v.f1.f0.tokenImage+" "+v.f0.accept(this, h));
+    public String visit(VarDeclaration v, HashMap<String, ArrayList<Object>> h) throws Exception {
         if(h.containsKey(v.f1.f0.tokenImage)){
-            System.out.println("Variable "+v.f1.f0.tokenImage+" already exists");
-            System.exit(-1);
+            throw new MyException("Variable "+v.f1.f0.tokenImage+" already exist");
         }
+
         ArrayList<Object> a = new ArrayList<>();
         a.add(v.f0.accept(this, h));
         h.put(v.f1.f0.tokenImage, a);
@@ -296,17 +414,15 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * f0 -> Type()
      * f1 -> Identifier()
      */
-    public String visit(FormalParameter f, HashMap<String, ArrayList<Object>> h){
-//        System.out.println("Parameter Variable "+f.f1.f0.tokenImage+" "+f.f0.accept(this, h));
+    public String visit(FormalParameter f, HashMap<String, ArrayList<Object>> h) throws Exception{
         if(h.containsKey(f.f1.f0.tokenImage)){
-            System.out.println("Variable "+f.f1.f0.tokenImage+" already exists");
-            System.exit(-1);
+            throw new MyException("Argument "+f.f1.f0.tokenImage+" already exist");
         }
 
         ArrayList<Object> a = new ArrayList<>();
         a.add(f.f0.accept(this, h));
+        args.add((String) a.get(0));
         h.put(f.f1.f0.tokenImage, a);
-//        System.out.println(f.f1.f0.tokenImage +" "+ a.get(0));
         return "";
     }
 
@@ -316,7 +432,7 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * f1 -> "["
      * f2 -> "]"
      */
-    public String visit(ArrayType c, HashMap<String, ArrayList<Object>> h){
+    public String visit(ArrayType c, HashMap<String, ArrayList<Object>> h) throws Exception{
         return "int[]";
     }
 
@@ -324,7 +440,7 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * Grammar production:
      * f0 -> "int"
      */
-    public String visit(IntegerType c, HashMap<String, ArrayList<Object>> h){
+    public String visit(IntegerType c, HashMap<String, ArrayList<Object>> h) throws Exception{
         return "int";
     }
 
@@ -332,7 +448,7 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * Grammar production:
      * f0 -> "boolean"
      */
-    public String visit(BooleanType c, HashMap<String, ArrayList<Object>> h){
+    public String visit(BooleanType c, HashMap<String, ArrayList<Object>> h) throws Exception{
         return "boolean";
     }
 
@@ -340,14 +456,7 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * Grammar production:
      * f0 -> <IDENTIFIER>
      */
-    public String visit(Identifier c, HashMap<String, ArrayList<Object>> h){
+    public String visit(Identifier c, HashMap<String, ArrayList<Object>> h) throws Exception{
         return c.f0.tokenImage;
     }
-
-//    public int checkVirtuals(HashMap<String, ArrayList<Object>> MethMap, String superClass){
-//        while(superClass != null){
-//
-//            superClass = (String) ClassMap.get(superClass).get(0);
-//        }
-//    }
 }

@@ -1,11 +1,11 @@
 public class MyException extends Exception {
-    int id;
+    private String message;
 
-    public MyException(int x) {
-        id = x;
+    public MyException(String x) {
+        message = x;
     }
 
-    public String toString() {
-        return "CustomException[" + id + "]";
+    public String getMessage() {
+        return message;
     }
 }
