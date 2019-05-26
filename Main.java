@@ -13,6 +13,7 @@ class Main {
 
             FileInputStream fis = null;
             FileInputStream fis2 = null;
+            FileInputStream fis3 = null;
             try {
                 //            Symbol Table
                 fis = new FileInputStream(arg);
@@ -33,7 +34,14 @@ class Main {
                 //            Print Indexes
                 STVisitor.makeIndexes();
 
-//                System.err.println("Program ok");
+                fis3 = new FileInputStream(arg);
+                MiniJavaParser parser3 = new MiniJavaParser(fis3);
+                LLVMVisitor eval3 = new LLVMVisitor();
+                Goal root3 = parser3.Goal();
+                LLVMVisitor.setFw(arg);
+                root3.accept(eval3);
+                LLVMVisitor.unsetFw();
+                System.err.println("LLVM Program written");
 
             } catch (ParseException ex) {
                 System.out.println(ex.getMessage());

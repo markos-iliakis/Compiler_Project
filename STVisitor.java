@@ -1,8 +1,5 @@
-import jdk.nashorn.internal.runtime.arrays.ArrayIndex;
 import syntaxtree.*;
 import visitor.GJDepthFirst;
-
-import java.lang.reflect.Array;
 import java.util.*;
 
 public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Object>>> {
@@ -76,7 +73,16 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
             return null;
     }
 
-    public static ArrayList<String> getArgs(String className, String method){
+    public static ArrayList<String> getArgsType(String className, String method){
+        ArrayList<String> types = new ArrayList<>();
+        ArrayList<String> names = (ArrayList<String>) getMethArray(className, method).get(2);
+        for (String name: names) {
+            types.add(getVarType(className, method, name));
+        }
+        return types;
+    }
+
+    public static ArrayList<String> getArgsName(String className, String method){
         return (ArrayList<String>) getMethArray(className, method).get(2);
     }
 
@@ -97,7 +103,7 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
 
 //                for every argument check types
                 Iterator it2 = ((ArrayList<String>) methMap.get(pair.getKey()).get(2)).iterator();
-                Iterator it3 = getArgs(baseClass, (String) pair.getKey()).iterator();
+                Iterator it3 = getArgsType(baseClass, (String) pair.getKey()).iterator();
                 while(it2.hasNext() && it3.hasNext()){
                     String type1 = (String) it2.next();
                     String type2 = (String) it3.next();
@@ -117,7 +123,9 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
 
     public static String getVarType(String className, String methName, String varName){
         ArrayList<Object> methList;
-        if((methList = getMethArray(className, methName)) == null) return null;
+        if((methList = getMethArray(className, methName)) == null) {
+            return null;
+        }
         if(((HashMap<String, ArrayList<Object>>) methList.get(1)).get(varName) == null) {
             return checkClassVars(className, varName);
         }
@@ -135,6 +143,14 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
             return isSubclassOf(getSuperClass(subClassName), superClassName);
         else
             return true;
+    }
+
+    public static String getMethType(String className, String methName){
+        return (String) getMethArray(className, methName).get(0);
+    }
+
+    public static HashMap<String, ArrayList<Object>> getMethVars(String className, String methName){
+        return (HashMap<String, ArrayList<Object>>) getMethArray(className, methName).get(1);
     }
 
     public static void makeIndexes(){
@@ -421,7 +437,7 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
 
         ArrayList<Object> a = new ArrayList<>();
         a.add(f.f0.accept(this, h));
-        args.add((String) a.get(0));
+        args.add(f.f1.f0.tokenImage);
         h.put(f.f1.f0.tokenImage, a);
         return "";
     }
@@ -433,7 +449,7 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
      * f2 -> "]"
      */
     public String visit(ArrayType c, HashMap<String, ArrayList<Object>> h) throws Exception{
-        return "int[]";
+        return "intp";
     }
 
     /**

@@ -3,8 +3,6 @@ import syntaxtree.*;
 import visitor.GJNoArguDepthFirst;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 
 public class TCVisitor extends GJNoArguDepthFirst<String> {
     private ArrayList<String> h = new ArrayList<>();
@@ -144,7 +142,7 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
     public String visit(ArrayAssignmentStatement a) throws Exception {
 //        check if identifier type is int array
         String id1 = a.f0.accept(this);
-        if(!id1.equals("int[]")){
+        if(!id1.equals("intp")){
             throw new MyException("Invalid Type "+a.f0.f0.tokenImage);
         }
 
@@ -296,7 +294,7 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
     public String visit(ArrayLookup c) throws Exception {
 //        check if f0 is of type array int
         String s = c.f0.accept(this);
-        if(!s.equals("int[]")){
+        if(!s.equals("intp")){
             throw new MyException("Invalid type, not an array type");
         }
 
@@ -318,7 +316,7 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
     public String visit(ArrayLength c) throws Exception {
 //        check if f0 is of type array int
         String s = c.f0.accept(this);
-        if(!s.equals("int[]")){
+        if(!s.equals("intp")){
             throw new MyException("Invalid type, not an int");
         }
         return "int";
@@ -354,7 +352,7 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
             throw new MyException("Invalid type, not an int");
         }
 
-        return "int[]";
+        return "intp";
     }
 
     /**
@@ -414,7 +412,7 @@ public class TCVisitor extends GJNoArguDepthFirst<String> {
      */
     public String visit(ExpressionList c) throws Exception {
         int argNum = STVisitor.getArgNum(h.get(2), h.get(3));
-        ArrayList<String> correctArgs = STVisitor.getArgs(h.get(2), h.get(3));
+        ArrayList<String> correctArgs = STVisitor.getArgsType(h.get(2), h.get(3));
         String methodName = h.get(3);
         h.remove(h.size()-1);
         h.remove(h.size()-1);
