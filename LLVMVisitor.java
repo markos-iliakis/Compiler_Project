@@ -33,11 +33,23 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     private static ArrayList<String> state = new ArrayList<>();
     private static FileWriter fw;
     private static int regCounter=-1;
+    private static int ifCounter = -1;
+    private static int loopCounter = -1;
     private static HashMap<String, String> varMap;
 
     static public String getNewVar(){
         regCounter++;
         return "%_" + regCounter;
+    }
+
+    static public String getNewIf(){
+        ifCounter++;
+        return "%if" + ifCounter + ":";
+    }
+
+    static public String getNewLoop(){
+        loopCounter++;
+        return "%loop" + loopCounter + ":";
     }
 
     static public void setFw(String str) throws Exception{
@@ -72,6 +84,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     @Override
     public String visit(MainClass n) throws Exception {
         regCounter = 0;
+        ifCounter = 0;
         state.add("main");
         fw.write("declare i8* @calloc(i32, i32)\n" +
                 "declare i32 @printf(i8*, ...)\n" +
@@ -165,6 +178,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(MethodDeclaration n) throws Exception{
+        regCounter = 0;
         System.err.println("in method");
         state.add(n.f2.f0.tokenImage);
         String methType = Type.getName(STVisitor.getMethType(state.get(0), state.get(1)));
@@ -243,66 +257,41 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(AssignmentStatement n) throws Exception {
-
+        String reg = n.f2.accept(this);
+        String ident = n.f0.f0.tokenImage;
+        String type = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), ident));
+        fw.write("      store " + type + " " + reg + ", " + type + "* " + ident + "\n");
+        return "null";
     }
-//
-//    /**
-//     * f0 -> "if"
-//     * f1 -> "("
-//     * f2 -> Expression()
-//     * f3 -> ")"
-//     * f4 -> Statement()
-//     * f5 -> "else"
-//     * f6 -> Statement()
-//     */
-//    @Override
-//    public String visit(IfStatement n) throws Exception {
-//        return super.visit(n);
-//    }
 
-//    /**
-//     * f0 -> "while"
-//     * f1 -> "("
-//     * f2 -> Expression()
-//     * f3 -> ")"
-//     * f4 -> Statement()
-//     */
-//    @Override
-//    public String visit(WhileStatement n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> "System.out.println"
-//     * f1 -> "("
-//     * f2 -> Expression()
-//     * f3 -> ")"
-//     * f4 -> ";"
-//     */
-//    @Override
-//    public String visit(PrintStatement n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> Clause()
-//     * f1 -> "&&"
-//     * f2 -> Clause()
-//     */
-//    @Override
-//    public String visit(AndExpression n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> PrimaryExpression()
-//     * f1 -> "<"
-//     * f2 -> PrimaryExpression()
-//     */
-//    @Override
-//    public String visit(CompareExpression n) throws Exception {
-//        return super.visit(n);
-//    }
+    /**
+     * f0 -> "System.out.println"
+     * f1 -> "("
+     * f2 -> Expression()
+     * f3 -> ")"
+     * f4 -> ";"
+     */
+    @Override
+    public String visit(PrintStatement n) throws Exception {
+        String reg = n.f2.accept(this);
+        fw.write("      call void (i32) @print_int(i32 "+  reg +")");
+        return "null";
+    }
+
+    /**
+     * f0 -> PrimaryExpression()
+     * f1 -> "<"
+     * f2 -> PrimaryExpression()
+     */
+    @Override
+    public String visit(CompareExpression n) throws Exception {
+        String reg1 = getNewVar();
+        String ident1 = n.f0.accept(this);
+        String ident2 = n.f2.accept(this);
+
+        fw.write(reg1 + " = icmp slt i32"+  ident1 +", " + ident2);
+        return reg1;
+    }
 
     /**
      * f0 -> PrimaryExpression()
@@ -312,7 +301,9 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     @Override
     public String visit(PlusExpression n) throws Exception {
         String var = getNewVar();
-        fw.write(var + " = add i32 " + varMap.get(n.f0.accept(this)) + ", " + varMap.get(n.f2.accept(this)));
+        String reg1 = n.f0.accept(this);
+        String reg2 = n.f2.accept(this);
+        fw.write(var + " = add i32 " + reg1 + ", " + reg2);
         return var;
     }
 
@@ -340,47 +331,12 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         return var;
     }
 
-//    /**
-//     * f0 -> PrimaryExpression()
-//     * f1 -> "["
-//     * f2 -> PrimaryExpression()
-//     * f3 -> "]"
-//     */
-//    @Override
-//    public String visit(ArrayLookup n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> PrimaryExpression()
-//     * f1 -> "."
-//     * f2 -> "length"
-//     */
-//    @Override
-//    public String visit(ArrayLength n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> PrimaryExpression()
-//     * f1 -> "."
-//     * f2 -> Identifier()
-//     * f3 -> "("
-//     * f4 -> ( ExpressionList() )?
-//     * f5 -> ")"
-//     */
-//    @Override
-//    public String visit(MessageSend n) throws Exception {
-//        return super.visit(n);
-//    }
-//
     /**
      * f0 -> "true"
      */
     @Override
     public String visit(TrueLiteral n) throws Exception {
-        fw.write("1");
-        return "null";
+        return "1";
     }
 
     /**
@@ -388,19 +344,108 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(FalseLiteral n) throws Exception {
-        fw.write("0");
+        return "0";
+    }
+
+    /**
+     * f0 -> <IDENTIFIER>
+     */
+    @Override
+    public String visit(Identifier n) throws Exception {
+        String var = getNewVar();
+        String ident = n.f0.tokenImage;
+        String type = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), ident));
+
+        fw.write(var + " = load " + type + ", " + type + "* %" + ident);
+        return var;
+    }
+
+    /**
+     * f0 -> <INTEGER_LITERAL>
+     */
+    @Override
+    public String visit(IntegerLiteral n) throws Exception {
+        return n.f0.tokenImage;
+    }
+
+    /**
+     * f0 -> "if"
+     * f1 -> "("
+     * f2 -> Expression()
+     * f3 -> ")"
+     * f4 -> Statement()
+     * f5 -> "else"
+     * f6 -> Statement()
+     */
+    @Override
+    public String visit(IfStatement n) throws Exception {
+        String reg1 = n.f2.accept(this);
+        String if1 = getNewIf(), if2 = getNewIf(), if3 = getNewIf();
+        fw.write("      br i1" + reg1 + ", label " + if1 + ", label " + if2 + "\n\n" +
+                "       " + if1 + "\n"
+        );
+        n.f4.accept(this);
+        fw.write("      br label " + if3 + "\n" +
+                "\n    " + if2 + "\n");
+        n.f6.accept(this);
+        fw.write("      br label " + if3 + "\n" +
+                "\n    " + if3 + "\n");
         return "null";
     }
 
-//    /**
-//     * f0 -> <IDENTIFIER>
-//     */
-//    @Override
-//    public String visit(Identifier n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
+    /**
+     * f0 -> "while"
+     * f1 -> "("
+     * f2 -> Expression()
+     * f3 -> ")"
+     * f4 -> Statement()
+     */
+    @Override
+    public String visit(WhileStatement n) throws Exception {
+        String loop1 = getNewLoop();
+        String loop2 = getNewLoop();
+        String loop3 = getNewLoop();
+
+        fw.write("      br label " + loop1 + "\n"+
+                "       " + loop1 + "\n"
+        );
+
+        String reg = n.f2.accept(this);
+
+        fw.write("      br i1 " + reg + ", label " + loop2 + ", label " + loop3 + "\n"+
+            "       " + loop2 + "\n"
+        );
+
+        n.f4.accept(this);
+
+        fw.write("      br label " + loop1 + "\n" +
+            "       " + loop3 + "\n"
+        );
+
+        return "null";
+    }
+
+    /**
+     * f0 -> "new"
+     * f1 -> Identifier()
+     * f2 -> "("
+     * f3 -> ")"
+     */
+    @Override
+    public String visit(AllocationExpression n) throws Exception {
+        String reg1 = getNewVar();
+        String reg2 = getNewVar();
+        String reg3 = getNewVar();
+
+        fw.write("      " + reg1 + " = call i8* @calloc(i32 1, i32 " + + ") \n" +
+                "       " + reg2 + " = bitcast i8* " + reg1 + " to i8***\n" +
+                "       " + reg3 + " = getelementptr [ " + + " x i8*], [ " + + " x i8*]* @." + n.f1.f0.tokenImage + "_vtable, i32 0 i32 0\n" +
+                "       store i8** " + reg3 + ", i8*** " + reg2 + "\n"
+        );
+        return reg1;
+    }
+
+    //    /**
 //     * f0 -> "this"
 //     */
 //    @Override
@@ -443,14 +488,38 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 //        return super.visit(n);
 //    }
 //
-//    /**
-//     * f0 -> "new"
-//     * f1 -> Identifier()
-//     * f2 -> "("
-//     * f3 -> ")"
+    //    /**
+//     * f0 -> PrimaryExpression()
+//     * f1 -> "["
+//     * f2 -> PrimaryExpression()
+//     * f3 -> "]"
 //     */
 //    @Override
-//    public String visit(AllocationExpression n) throws Exception {
+//    public String visit(ArrayLookup n) throws Exception {
 //        return super.visit(n);
 //    }
+//
+//    /**
+//     * f0 -> PrimaryExpression()
+//     * f1 -> "."
+//     * f2 -> "length"
+//     */
+//    @Override
+//    public String visit(ArrayLength n) throws Exception {
+//        return super.visit(n);
+//    }
+//
+//    /**
+//     * f0 -> PrimaryExpression()
+//     * f1 -> "."
+//     * f2 -> Identifier()
+//     * f3 -> "("
+//     * f4 -> ( ExpressionList() )?
+//     * f5 -> ")"
+//     */
+//    @Override
+//    public String visit(MessageSend n) throws Exception {
+//        return super.visit(n);
+//    }
+//
 }
