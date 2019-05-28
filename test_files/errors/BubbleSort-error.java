@@ -73,7 +73,7 @@ class BBS{
     
     // Initialize array of integers
     public int Init(int sz){
-	size = sz ;
+	size = sz1 ;  //TE
 	number = new int[sz] ;
 	
 	number[0] = 20 ;

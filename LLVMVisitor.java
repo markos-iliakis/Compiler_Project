@@ -32,9 +32,8 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
     private static ArrayList<String> state = new ArrayList<>();
     private static FileWriter fw;
-    private static int regCounter=-1;
-    private static int ifCounter = -1;
-    private static int loopCounter = -1;
+    private static int regCounter=-1, ifCounter=-1, loopCounter=-1, arrCounter=-1, oobCounter=-1;
+
     private static HashMap<String, String> varMap;
 
     static public String getNewVar(){
@@ -50,6 +49,16 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     static public String getNewLoop(){
         loopCounter++;
         return "%loop" + loopCounter + ":";
+    }
+
+    static public String getNewArr(){
+        arrCounter++;
+        return "%arr_alloc" + arrCounter + ":";
+    }
+
+    static public String getNewOob(){
+        oobCounter++;
+        return "%oob" + oobCounter + ":";
     }
 
     static public void setFw(String str) throws Exception{
@@ -439,87 +448,178 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
         fw.write("      " + reg1 + " = call i8* @calloc(i32 1, i32 " + + ") \n" +
                 "       " + reg2 + " = bitcast i8* " + reg1 + " to i8***\n" +
-                "       " + reg3 + " = getelementptr [ " + + " x i8*], [ " + + " x i8*]* @." + n.f1.f0.tokenImage + "_vtable, i32 0 i32 0\n" +
+                "       " + reg3 + " = getelementptr [ " +  + " x i8*], [ " + + " x i8*]* @." + n.f1.f0.tokenImage + "_vtable, i32 0 i32 0\n" +
                 "       store i8** " + reg3 + ", i8*** " + reg2 + "\n"
         );
         return reg1;
     }
 
-    //    /**
-//     * f0 -> "this"
-//     */
-//    @Override
-//    public String visit(ThisExpression n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> "new"
-//     * f1 -> "int"
-//     * f2 -> "["
-//     * f3 -> Expression()
-//     * f4 -> "]"
-//     */
-//    @Override
-//    public String visit(ArrayAllocationExpression n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> "!"
-//     * f1 -> Clause()
-//     */
-//    @Override
-//    public String visit(NotExpression n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> Identifier()
-//     * f1 -> "["
-//     * f2 -> Expression()
-//     * f3 -> "]"
-//     * f4 -> "="
-//     * f5 -> Expression()
-//     * f6 -> ";"
-//     */
-//    @Override
-//    public String visit(ArrayAssignmentStatement n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-    //    /**
-//     * f0 -> PrimaryExpression()
-//     * f1 -> "["
-//     * f2 -> PrimaryExpression()
-//     * f3 -> "]"
-//     */
-//    @Override
-//    public String visit(ArrayLookup n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> PrimaryExpression()
-//     * f1 -> "."
-//     * f2 -> "length"
-//     */
-//    @Override
-//    public String visit(ArrayLength n) throws Exception {
-//        return super.visit(n);
-//    }
-//
-//    /**
-//     * f0 -> PrimaryExpression()
-//     * f1 -> "."
-//     * f2 -> Identifier()
-//     * f3 -> "("
-//     * f4 -> ( ExpressionList() )?
-//     * f5 -> ")"
-//     */
-//    @Override
-//    public String visit(MessageSend n) throws Exception {
-//        return super.visit(n);
-//    }
-//
+    /**
+     * f0 -> "new"
+     * f1 -> "int"
+     * f2 -> "["
+     * f3 -> Expression()
+     * f4 -> "]"
+     */
+    @Override
+    public String visit(ArrayAllocationExpression n) throws Exception {
+        String reg1 = n.f3.accept(this);
+        String reg2 = getNewVar();
+        String reg3 = getNewVar();
+        String reg4 = getNewVar();
+        String reg5 = getNewVar();
+        String arr_alloc1 = getNewArr();
+        String arr_alloc2 = getNewArr();
+
+        fw.write("      " + reg2 + " = icmp slt i32 " + reg1 + ", 0\n"+
+            "       br i1 " + reg2 + ", label " + arr_alloc1 + ", label " + arr_alloc2 + "\n" +
+            "\n       " + arr_alloc1 + "\n" +
+            "       call void @throw_oob()\n" +
+            "       br label " + arr_alloc2 + "\n" +
+            "\n       " + arr_alloc2 + "\n" +
+            "       " + reg3 + " = add i32 " + reg1 + ", 1\n" +
+            "       " + reg4 + " = call i8* @calloc(i32 4, i32 "+ reg3 +")\n" +
+            "       " + reg5 + " = bitcast i8* " + reg4 + " to i32*\n" +
+            "       store i32* " + reg1 + ", i32* " + reg5 + "\n"
+        );
+        return reg5;
+    }
+
+        /**
+     * f0 -> Identifier()
+     * f1 -> "["
+     * f2 -> Expression()
+     * f3 -> "]"
+     * f4 -> "="
+     * f5 -> Expression()
+     * f6 -> ";"
+     */
+    @Override
+    public String visit(ArrayAssignmentStatement n) throws Exception {
+        String reg1 = n.f0.accept(this);
+        String reg2 = getNewVar();
+        String reg3 = getNewVar();
+        String reg4 = n.f2.accept(this);
+        String reg5 = n.f5.accept(this);
+        String reg6 = getNewVar();
+        String reg7 = getNewVar();
+
+        String label1 = getNewOob();
+        String label2 = getNewOob();
+        String label3 = getNewOob();
+
+        fw.write("      " + reg2 + " = load i32, i32* " + reg1 + "\n" +
+                "       " + reg3 + " = icmp ult i32 " + reg4 + ", " + reg2 + "\n" +
+                "       br i1 " + reg3 + ", label " + label1 + ", label " + label2 + "\n" +
+                "\n       " + label1 + "\n" +
+                "       " + reg6 + " = add i32" + reg1 + ", 1\n" +
+                "       " + reg7 + " = getelementptr i32, i32* " + reg1 + ", i32 " + reg6 + "\n" +
+                "       store i32 " + reg5 + ", i32* " + reg7 + "\n" +
+                "       br label " + label3 + "\n" +
+                "       " + label2 + "\n" +
+                "       call void @throw_oob()\n" +
+                "       br label " + label3 + "\n" +
+                "\n       " + label3 + "\n"
+        );
+        return "null";
+    }
+
+        /**
+     * f0 -> PrimaryExpression()
+     * f1 -> "["
+     * f2 -> PrimaryExpression()
+     * f3 -> "]"
+     */
+    @Override
+    public String visit(ArrayLookup n) throws Exception {
+        String reg1 = n.f0.accept(this);
+        String reg2 = n.f2.accept(this);
+        String reg3 = getNewVar();
+        String reg4 = getNewVar();
+        String reg5 = getNewVar();
+        String reg6 = getNewVar();
+        String reg7 = getNewVar();
+
+        String oob1 = getNewOob();
+        String oob2 = getNewOob();
+        String oob3 = getNewOob();
+
+        fw.write("      " + reg3 + "load i32, i32* " + reg1 + "\n" +
+                "       " + reg4 + " = icmp ult i32 " + reg2 + ", " + reg3 + "\n" +
+                "       br i1 " + reg4 + ",  label " + oob1 + ", label " + oob2 + "\n" +
+                "\n       " + oob1 + "\n" +
+                "       " + reg5 + " = add i32 " + reg2 + ", 1\n" +
+                "       " + reg6 + " = getelementptr i32, i32* " + reg1 + ", i32 " + reg5 + "\n" +
+                "       " + reg7 + " = load i32, i32* " + reg6 + "\n" +
+                "       br label " + oob3 + "\n" +
+                "\n       " + oob2 + "\n" +
+                "       call void @throw_oob()\n" +
+                "       br label " + oob3 + "\n" +
+                "\n       " + oob3 + "\n"
+        );
+        return reg7;
+    }
+
+        /**
+     * f0 -> "this"
+     */
+    @Override
+    public String visit(ThisExpression n) throws Exception {
+        return "%this";
+    }
+
+    /**
+     * f0 -> "!"
+     * f1 -> Clause()
+     */
+    @Override
+    public String visit(NotExpression n) throws Exception {
+        String reg1 = n.f1.accept(this);
+        String reg2 = getNewVar();
+
+        fw.write("      " + reg2 + " = xor i1 1, " + reg1 + "\n");
+        return reg2;
+    }
+
+    /**
+     * f0 -> PrimaryExpression()
+     * f1 -> "."
+     * f2 -> "length"
+     */
+    @Override
+    public String visit(ArrayLength n) throws Exception {
+        String reg1 = n.f0.accept(this);
+        String reg2 = getNewVar();
+
+        fw.write("      " + reg2 + " = load i32, i32* " + reg1 + "\n");
+        return reg2;
+    }
+
+    /**
+     * f0 -> PrimaryExpression()
+     * f1 -> "."
+     * f2 -> Identifier()
+     * f3 -> "("
+     * f4 -> ( ExpressionList() )?
+     * f5 -> ")"
+     */
+    @Override
+    public String visit(MessageSend n) throws Exception {
+        String reg1 = n.f0.accept(this);
+        String reg2 = n.f2.accept(this);
+        String reg3 = getNewVar();
+        String reg4 = getNewVar();
+        String reg5 = getNewVar();
+        String reg6 = getNewVar();
+        String reg7 = getNewVar();
+
+        fw.write("      " + reg3 + " = bitcast i8* " + reg1 + " to i8***\n" +
+                "       " + reg4 + " = load i8**, i8*** " + reg3 + "\n" +
+                "       " + reg5 + " = getelementptr i8*, i8** " + reg4 + ", i32 " + + "\n" +
+                "       " + reg6 + " = load i8*, i8** " + reg5 + "\n" +
+                "       " + reg7 + " = bitcast i8* " + reg6 + " to " + + "\n" +
+                "       " + reg8 + " = call i1 "
+        );
+    }
+
 }
