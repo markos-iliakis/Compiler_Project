@@ -4,6 +4,7 @@ import java.util.*;
 
 public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Object>>> {
 
+    static Map<String, Offset> offsets = new LinkedHashMap<>();
     static private HashMap<String, ArrayList<Object>> ClassMap;
     static private ArrayList<ArrayList<String>> order = new ArrayList<>(Arrays.asList(new ArrayList<>(), new ArrayList<>(), new ArrayList<>()));
     private static boolean flag = false;
@@ -174,6 +175,8 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
                 map.get(className).set(1, baseMethodOffset);
             }
 
+            Offset off = new Offset(className);
+
 //            Find var offsets
             Iterator it2 = order.get(1).iterator();
             while(it2.hasNext()){
@@ -193,6 +196,8 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
 
 //                print offsets
                 System.out.println(className + "." + varName + " : " + map.get(className).get(0));
+
+                off.varOff.put(varName, map.get(className).get(0));
 
 //                raise the VarIndex counter
                 map.get(className).set(0, map.get(className).get(0) + bytes);
@@ -218,11 +223,15 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
 //                print offsets
                 System.out.println(className + "." + methName + " : " + map.get(className).get(1));
 
+                off.methOff.put(methName, map.get(className).get(1));
+
 //                raise the MethodIndex counter
                 map.get(className).set(1, map.get(className).get(1) + bytes);
 
                 it3.remove();
             }
+
+            offsets.put(className, off);
 
             it.remove();
         }

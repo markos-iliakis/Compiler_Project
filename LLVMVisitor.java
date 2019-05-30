@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
@@ -35,6 +36,8 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     private static int regCounter=-1, ifCounter=-1, loopCounter=-1, arrCounter=-1, oobCounter=-1;
 
     private static HashMap<String, String> varMap;
+
+    private static ArrayList<String> argRegs = new ArrayList<>();
 
     static public String getNewVar(){
         regCounter++;
@@ -94,7 +97,9 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     public String visit(MainClass n) throws Exception {
         regCounter = 0;
         ifCounter = 0;
+        state.add(n.f1.f0.tokenImage);
         state.add("main");
+        makeVtable();
         fw.write("declare i8* @calloc(i32, i32)\n" +
                 "declare i32 @printf(i8*, ...)\n" +
                 "declare void @exit(i32)\n" +
@@ -126,6 +131,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
                 "}\n"
         );
         state.remove("main");
+        state.remove(n.f1.f0.tokenImage);
         return "null";
     }
 
@@ -445,10 +451,11 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         String reg1 = getNewVar();
         String reg2 = getNewVar();
         String reg3 = getNewVar();
+        int objectStart = STVisitor.offsets.get(n.f1.f0.tokenImage).methOff.size();
 
         fw.write("      " + reg1 + " = call i8* @calloc(i32 1, i32 " + + ") \n" +
                 "       " + reg2 + " = bitcast i8* " + reg1 + " to i8***\n" +
-                "       " + reg3 + " = getelementptr [ " +  + " x i8*], [ " + + " x i8*]* @." + n.f1.f0.tokenImage + "_vtable, i32 0 i32 0\n" +
+                "       " + reg3 + " = getelementptr [ " + objectStart + " x i8*], [ " + objectStart + " x i8*]* @." + n.f1.f0.tokenImage + "_vtable, i32 0 i32 0\n" +
                 "       store i8** " + reg3 + ", i8*** " + reg2 + "\n"
         );
         return reg1;
@@ -582,6 +589,16 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     }
 
     /**
+     * f0 -> Clause()
+     * f1 -> "&&"
+     * f2 -> Clause()
+     */
+    @Override
+    public String visit(AndExpression n) throws Exception {
+
+    }
+
+    /**
      * f0 -> PrimaryExpression()
      * f1 -> "."
      * f2 -> "length"
@@ -612,14 +629,84 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         String reg5 = getNewVar();
         String reg6 = getNewVar();
         String reg7 = getNewVar();
+        String reg8 = n.f4.accept(this);
+        String className = ;
+        String methName = n.f2.f0.tokenImage;
+        int off = STVisitor.offsets.get(className).methOff.get(methName) / 8 -1;
+        String methType = Type.getName(STVisitor.getMethType(className, methName));
 
         fw.write("      " + reg3 + " = bitcast i8* " + reg1 + " to i8***\n" +
                 "       " + reg4 + " = load i8**, i8*** " + reg3 + "\n" +
-                "       " + reg5 + " = getelementptr i8*, i8** " + reg4 + ", i32 " + + "\n" +
+                "       " + reg5 + " = getelementptr i8*, i8** " + reg4 + ", i32 " + off + "\n" +
                 "       " + reg6 + " = load i8*, i8** " + reg5 + "\n" +
-                "       " + reg7 + " = bitcast i8* " + reg6 + " to " + + "\n" +
-                "       " + reg8 + " = call i1 "
+                "       " + reg7 + " = bitcast i8* " + reg6 + " to " + methType + " (i8*"
         );
+
+
+        for (String type: STVisitor.getArgsType(className, methName)) {
+            type = Type.getName(type);
+            fw.write("," + type);
+        }
+
+        fw.write(")*\n" +
+                "call " + methType + " " + reg7 + "(i8* %this"
+        );
+
+        for (String type: STVisitor.getArgsType(className, methName)) {
+            type = Type.getName(type);
+            String reg = ;
+            fw.write(", " + type + " " + reg);
+        }
     }
 
+    /**
+     * f0 -> Expression()
+     * f1 -> ExpressionTail()
+     */
+    @Override
+    public String visit(ExpressionList n) throws Exception {
+        return super.visit(n);
+    }
+
+    /**
+     * f0 -> ( ExpressionTerm() )*
+     */
+    @Override
+    public String visit(ExpressionTail n) throws Exception {
+        return super.visit(n);
+    }
+
+    /**
+     * f0 -> ","
+     * f1 -> Expression()
+     */
+    @Override
+    public String visit(ExpressionTerm n) throws Exception {
+        return super.visit(n);
+    }
+
+    public void makeVtable() throws Exception{
+        boolean first = true;
+        for (Map.Entry<String, Offset> e: STVisitor.offsets.entrySet()) {
+
+            fw.write("@." + e.getKey() + "_vtable = global [" + e.getValue().methOff.size() + "x i8*] [");
+
+            for (Map.Entry<String, Integer> m: e.getValue().methOff.entrySet()) {
+                String methName = m.getKey();
+                String methType = Type.getName(STVisitor.getMethType(e.getValue().className, methName));
+
+                if(!first)  fw.write(", ");
+                fw.write("i8* bitcast (" + methType + " (i8*");
+                //arguments
+                for (String type: STVisitor.getArgsType(e.getValue().className, methName)) {
+                    type = Type.getName(type);
+                    fw.write("," + type);
+                }
+                first = false;
+                fw.write(")* @" + e.getValue().className + "." + methName + " to i8*)");
+            }
+            first = true;
+            fw.write("]\n");
+        }
+    }
 }
