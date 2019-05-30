@@ -1,7 +1,4 @@
 *.class
 *~
-<<<<<<< HEAD
-.idea/*
-=======
 .idea/
->>>>>>> 82cbd53c9cab7f5cd3a4148f9278b49cb55c7477
+out/
