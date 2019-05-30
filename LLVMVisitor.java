@@ -2,10 +2,7 @@ import syntaxtree.*;
 import visitor.GJNoArguDepthFirst;
 
 import java.io.FileWriter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
@@ -35,8 +32,6 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     private static FileWriter fw;
     private static int regCounter=-1, ifCounter=-1, loopCounter=-1, arrCounter=-1, oobCounter=-1;
 
-    private static HashMap<String, String> varMap;
-
     private static ArrayList<String> argRegs = new ArrayList<>();
 
     static public String getNewVar(){
@@ -46,26 +41,27 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
     static public String getNewIf(){
         ifCounter++;
-        return "%if" + ifCounter + ":";
+        return "if" + ifCounter;
     }
 
     static public String getNewLoop(){
         loopCounter++;
-        return "%loop" + loopCounter + ":";
+        return "loop" + loopCounter;
     }
 
     static public String getNewArr(){
         arrCounter++;
-        return "%arr_alloc" + arrCounter + ":";
+        return "arr_alloc" + arrCounter;
     }
 
     static public String getNewOob(){
         oobCounter++;
-        return "%oob" + oobCounter + ":";
+        return "oob" + oobCounter;
     }
 
     static public void setFw(String str) throws Exception{
         fw=new FileWriter(str.replace(".java", ".ll"));
+//        fw = new FileWriter(str);
     }
 
     static public void unsetFw() throws Exception{
@@ -95,8 +91,8 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(MainClass n) throws Exception {
-        regCounter = 0;
-        ifCounter = 0;
+        regCounter = -1;
+        ifCounter = -1;
         state.add(n.f1.f0.tokenImage);
         state.add("main");
         makeVtable();
@@ -146,7 +142,6 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     public String visit(ClassDeclaration n) throws Exception{
         System.err.println("in class");
         state.add(n.f1.f0.tokenImage);
-        varMap = new HashMap<>();
 //        go only to method declarations
         n.f4.accept(this);
 
@@ -168,7 +163,6 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     public String visit(ClassExtendsDeclaration n) throws Exception{
         System.err.println("in class extends");
         state.add(n.f1.f0.tokenImage);
-        varMap = new HashMap<>();
 //        go only to method declarations
         n.f6.accept(this);
 
@@ -193,7 +187,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(MethodDeclaration n) throws Exception{
-        regCounter = 0;
+        regCounter = -1;
         System.err.println("in method");
         state.add(n.f2.f0.tokenImage);
         String methType = Type.getName(STVisitor.getMethType(state.get(0), state.get(1)));
@@ -214,7 +208,6 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
         while (i1.hasNext() && i2.hasNext()){
             String argName = (String) i1.next(), argType = Type.getName((String) i2.next());
-            varMap.put(argName, "%".concat(argName));
             fw.write("    %" + argName + " = alloca " + argType + "\n" +
                     "    store " + argType + " %." + argName + ", " + argType + "* %" + argName + "\n"
             );
@@ -222,15 +215,14 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
 //        var declarations
         n.f7.accept(this);
+        fw.write("\n");
 //        statements
         n.f8.accept(this);
 
-        fw.write("    ret " + methType + " ");
+        //        return value
+        String reg = n.f10.accept(this);
 
-//        return value
-        n.f10.accept(this);
-
-        fw.write("\n}\n");
+        fw.write("\n\n    ret " + methType + " " + reg + "\n}\n");
 
         state.remove(n.f2.f0.tokenImage);
         System.err.println("leaving method");
@@ -246,7 +238,6 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     public String visit(FormalParameter n) throws Exception{
         System.err.println("in parameters");
         fw.write(", " + Type.getName(STVisitor.getVarType(state.get(0), state.get(1), n.f1.f0.tokenImage)) + " %." + n.f1.f0.tokenImage);
-        System.err.println("leaving parameters");
         return "null";
     }
 
@@ -260,7 +251,6 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         System.err.println("in vars");
         String varType = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), n.f1.f0.tokenImage));
         fw.write("    %" + n.f1.f0.tokenImage + " = alloca " + varType + "\n");
-        varMap.put(n.f1.f0.tokenImage, "%".concat(n.f1.f0.tokenImage));
         return "null";
     }
 
@@ -275,7 +265,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         String reg = n.f2.accept(this);
         String ident = n.f0.f0.tokenImage;
         String type = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), ident));
-        fw.write("      store " + type + " " + reg + ", " + type + "* " + ident + "\n");
+        fw.write("      store " + type + " " + reg + ", " + type + "* %" + ident + "\n");
         return "null";
     }
 
@@ -289,7 +279,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     @Override
     public String visit(PrintStatement n) throws Exception {
         String reg = n.f2.accept(this);
-        fw.write("      call void (i32) @print_int(i32 "+  reg +")");
+        fw.write("      call void (i32) @print_int(i32 "+  reg +")\n");
         return "null";
     }
 
@@ -304,7 +294,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         String ident1 = n.f0.accept(this);
         String ident2 = n.f2.accept(this);
 
-        fw.write(reg1 + " = icmp slt i32"+  ident1 +", " + ident2);
+        fw.write("      " + reg1 + " = icmp slt i32 "+  ident1 +", " + ident2 + "\n");
         return reg1;
     }
 
@@ -318,7 +308,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         String var = getNewVar();
         String reg1 = n.f0.accept(this);
         String reg2 = n.f2.accept(this);
-        fw.write(var + " = add i32 " + reg1 + ", " + reg2);
+        fw.write("      " + var + " = add i32 " + reg1 + ", " + reg2 + "\n");
         return var;
     }
 
@@ -329,8 +319,10 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(MinusExpression n) throws Exception {
+        String reg1 = n.f0.accept(this);
+        String reg2 = n.f2.accept(this);
         String var = getNewVar();
-        fw.write(var + " = sub i32 " + varMap.get(n.f0.accept(this)) + ", " + varMap.get(n.f2.accept(this)));
+        fw.write("      " + var + " = sub i32 " + reg1 + ", " + reg2 + "\n");
         return var;
     }
 
@@ -341,8 +333,10 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(TimesExpression n) throws Exception {
+        String reg1 = n.f0.accept(this);
+        String reg2 = n.f2.accept(this);
         String var = getNewVar();
-        fw.write(var + " = mul i32 " + varMap.get(n.f0.accept(this)) + ", " + varMap.get(n.f1.accept(this)));
+        fw.write("      " + var + " = mul i32 " + reg1 + ", " + reg2 + "\n");
         return var;
     }
 
@@ -367,11 +361,18 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(Identifier n) throws Exception {
+        System.err.println("Identifier");
+
         String var = getNewVar();
         String ident = n.f0.tokenImage;
+        System.err.println(state.get(0) + " " + state.get(1) + " " + ident);
         String type = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), ident));
+        if(state.size()>2){
+            state.remove(2);
+            state.add(STVisitor.getVarType(state.get(0), state.get(1), ident));
+        }
 
-        fw.write(var + " = load " + type + ", " + type + "* %" + ident);
+        fw.write("      " + var + " = load " + type + ", " + type + "* %" + ident + "\n");
         return var;
     }
 
@@ -396,15 +397,15 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     public String visit(IfStatement n) throws Exception {
         String reg1 = n.f2.accept(this);
         String if1 = getNewIf(), if2 = getNewIf(), if3 = getNewIf();
-        fw.write("      br i1" + reg1 + ", label " + if1 + ", label " + if2 + "\n\n" +
-                "       " + if1 + "\n"
+        fw.write("      br i1 " + reg1 + ", label %" + if1 + ", label %" + if2 + "\n\n" +
+                "       " + if1 + ":\n"
         );
         n.f4.accept(this);
-        fw.write("      br label " + if3 + "\n" +
-                "\n    " + if2 + "\n");
+        fw.write("      br label %" + if3 + "\n" +
+                "\n    " + if2 + ":\n");
         n.f6.accept(this);
-        fw.write("      br label " + if3 + "\n" +
-                "\n    " + if3 + "\n");
+        fw.write("      br label %" + if3 + "\n" +
+                "\n    " + if3 + ":\n");
         return "null";
     }
 
@@ -421,20 +422,20 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         String loop2 = getNewLoop();
         String loop3 = getNewLoop();
 
-        fw.write("      br label " + loop1 + "\n"+
-                "       " + loop1 + "\n"
+        fw.write("      br label %" + loop1 + "\n"+
+                "       " + loop1 + ":\n"
         );
 
         String reg = n.f2.accept(this);
 
-        fw.write("      br i1 " + reg + ", label " + loop2 + ", label " + loop3 + "\n"+
-            "       " + loop2 + "\n"
+        fw.write("      br i1 " + reg + ", label %" + loop2 + ", label %" + loop3 + "\n"+
+            "       " + loop2 + ":\n"
         );
 
         n.f4.accept(this);
 
-        fw.write("      br label " + loop1 + "\n" +
-            "       " + loop3 + "\n"
+        fw.write("      br label %" + loop1 + "\n" +
+            "       " + loop3 + ":\n"
         );
 
         return "null";
@@ -448,12 +449,19 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(AllocationExpression n) throws Exception {
+        System.err.println("Allocation");
         String reg1 = getNewVar();
         String reg2 = getNewVar();
         String reg3 = getNewVar();
+        String className = n.f1.f0.tokenImage;
+        if(state.size()>2){
+            state.remove(2);
+            state.add(className);
+        }
         int objectStart = STVisitor.offsets.get(n.f1.f0.tokenImage).methOff.size();
+        int objectSize = 8 + (STVisitor.offsets.get(className).varOff.isEmpty() ? 0 :Collections.max(STVisitor.offsets.get(className).varOff.values()));
 
-        fw.write("      " + reg1 + " = call i8* @calloc(i32 1, i32 " + + ") \n" +
+        fw.write("      " + reg1 + " = call i8* @calloc(i32 1, i32 " + objectSize + ") \n" +
                 "       " + reg2 + " = bitcast i8* " + reg1 + " to i8***\n" +
                 "       " + reg3 + " = getelementptr [ " + objectStart + " x i8*], [ " + objectStart + " x i8*]* @." + n.f1.f0.tokenImage + "_vtable, i32 0 i32 0\n" +
                 "       store i8** " + reg3 + ", i8*** " + reg2 + "\n"
@@ -470,6 +478,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(ArrayAllocationExpression n) throws Exception {
+        System.err.println("ArrayAllocation");
         String reg1 = n.f3.accept(this);
         String reg2 = getNewVar();
         String reg3 = getNewVar();
@@ -479,11 +488,11 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         String arr_alloc2 = getNewArr();
 
         fw.write("      " + reg2 + " = icmp slt i32 " + reg1 + ", 0\n"+
-            "       br i1 " + reg2 + ", label " + arr_alloc1 + ", label " + arr_alloc2 + "\n" +
-            "\n       " + arr_alloc1 + "\n" +
+            "       br i1 " + reg2 + ", label %" + arr_alloc1 + ", label %" + arr_alloc2 + "\n" +
+            "\n       " + arr_alloc1 + ":\n" +
             "       call void @throw_oob()\n" +
-            "       br label " + arr_alloc2 + "\n" +
-            "\n       " + arr_alloc2 + "\n" +
+            "       br label %" + arr_alloc2 + "\n" +
+            "\n       " + arr_alloc2 + ":\n" +
             "       " + reg3 + " = add i32 " + reg1 + ", 1\n" +
             "       " + reg4 + " = call i8* @calloc(i32 4, i32 "+ reg3 +")\n" +
             "       " + reg5 + " = bitcast i8* " + reg4 + " to i32*\n" +
@@ -517,16 +526,16 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
         fw.write("      " + reg2 + " = load i32, i32* " + reg1 + "\n" +
                 "       " + reg3 + " = icmp ult i32 " + reg4 + ", " + reg2 + "\n" +
-                "       br i1 " + reg3 + ", label " + label1 + ", label " + label2 + "\n" +
-                "\n       " + label1 + "\n" +
+                "       br i1 " + reg3 + ", label %" + label1 + ", label %" + label2 + "\n" +
+                "\n       " + label1 + ":\n" +
                 "       " + reg6 + " = add i32" + reg1 + ", 1\n" +
                 "       " + reg7 + " = getelementptr i32, i32* " + reg1 + ", i32 " + reg6 + "\n" +
                 "       store i32 " + reg5 + ", i32* " + reg7 + "\n" +
-                "       br label " + label3 + "\n" +
-                "       " + label2 + "\n" +
+                "       br label %" + label3 + "\n" +
+                "       " + label2 + ":\n" +
                 "       call void @throw_oob()\n" +
-                "       br label " + label3 + "\n" +
-                "\n       " + label3 + "\n"
+                "       br label %" + label3 + "\n" +
+                "\n       " + label3 + ":\n"
         );
         return "null";
     }
@@ -553,16 +562,16 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
         fw.write("      " + reg3 + "load i32, i32* " + reg1 + "\n" +
                 "       " + reg4 + " = icmp ult i32 " + reg2 + ", " + reg3 + "\n" +
-                "       br i1 " + reg4 + ",  label " + oob1 + ", label " + oob2 + "\n" +
-                "\n       " + oob1 + "\n" +
+                "       br i1 " + reg4 + ",  label %" + oob1 + ", label %" + oob2 + "\n" +
+                "\n       " + oob1 + ":\n" +
                 "       " + reg5 + " = add i32 " + reg2 + ", 1\n" +
                 "       " + reg6 + " = getelementptr i32, i32* " + reg1 + ", i32 " + reg5 + "\n" +
                 "       " + reg7 + " = load i32, i32* " + reg6 + "\n" +
-                "       br label " + oob3 + "\n" +
-                "\n       " + oob2 + "\n" +
+                "       br label %" + oob3 + "\n" +
+                "\n       " + oob2 + ":\n" +
                 "       call void @throw_oob()\n" +
-                "       br label " + oob3 + "\n" +
-                "\n       " + oob3 + "\n"
+                "       br label %" + oob3 + "\n" +
+                "\n       " + oob3 + ":\n"
         );
         return reg7;
     }
@@ -572,6 +581,12 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(ThisExpression n) throws Exception {
+        System.err.println("This Expression");
+
+        if(state.size()>2){
+            state.remove(2);
+            state.add(state.get(0));
+        }
         return "%this";
     }
 
@@ -593,9 +608,38 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      * f1 -> "&&"
      * f2 -> Clause()
      */
-    @Override
-    public String visit(AndExpression n) throws Exception {
+//    @Override
+//    public String visit(AndExpression n) throws Exception {
+//
+//    }
 
+
+    /**
+     * f0 -> AndExpression()
+     * | CompareExpression()
+     * | PlusExpression()
+     * | MinusExpression()
+     * | TimesExpression()
+     * | ArrayLookup()
+     * | ArrayLength()
+     * | MessageSend()
+     * | Clause()
+     *
+     * @param n
+     */
+    @Override
+    public String visit(Expression n) throws Exception {
+        return n.f0.accept(this);
+    }
+
+    /**
+     * f0 -> "("
+     * f1 -> Expression()
+     * f2 -> ")"
+     */
+    @Override
+    public String visit(BracketExpression n) throws Exception {
+        return n.f1.accept(this);
     }
 
     /**
@@ -622,22 +666,30 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(MessageSend n) throws Exception {
+        System.err.println("MessageSend");
+        System.err.println(state.size());
+        state.add("1");
         String reg1 = n.f0.accept(this);
-        String reg2 = n.f2.accept(this);
+        System.err.println(state.get(2));
+        String className = state.remove(2);
+
         String reg3 = getNewVar();
         String reg4 = getNewVar();
         String reg5 = getNewVar();
         String reg6 = getNewVar();
         String reg7 = getNewVar();
-        String reg8 = n.f4.accept(this);
-        String className = ;
+        String reg8 = getNewVar();
+
+        n.f4.accept(this);
+
         String methName = n.f2.f0.tokenImage;
-        int off = STVisitor.offsets.get(className).methOff.get(methName) / 8 -1;
+        System.err.println(className + " " + methName + " ");
+        int off = (STVisitor.offsets.get(className).methOff.isEmpty() ? 0 : STVisitor.offsets.get(className).methOff.get(methName) / 8 - 1);
         String methType = Type.getName(STVisitor.getMethType(className, methName));
 
         fw.write("      " + reg3 + " = bitcast i8* " + reg1 + " to i8***\n" +
                 "       " + reg4 + " = load i8**, i8*** " + reg3 + "\n" +
-                "       " + reg5 + " = getelementptr i8*, i8** " + reg4 + ", i32 " + off + "\n" +
+                "       " + reg5 + " = getelementptr i8*, i8** " + reg4 + ", i32 " + (off<0?0:off) + "\n" +
                 "       " + reg6 + " = load i8*, i8** " + reg5 + "\n" +
                 "       " + reg7 + " = bitcast i8* " + reg6 + " to " + methType + " (i8*"
         );
@@ -649,14 +701,17 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         }
 
         fw.write(")*\n" +
-                "call " + methType + " " + reg7 + "(i8* %this"
+                "       " + reg8 + " = call " + methType + " " + reg7 + "(i8* %this"
         );
 
         for (String type: STVisitor.getArgsType(className, methName)) {
             type = Type.getName(type);
-            String reg = ;
+            String reg = argRegs.remove(0);
             fw.write(", " + type + " " + reg);
         }
+
+        fw.write(")\n");
+        return reg8;
     }
 
     /**
@@ -665,7 +720,11 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(ExpressionList n) throws Exception {
-        return super.visit(n);
+        argRegs.add(n.f0.accept(this));
+        for (int i = 0; i < n.f1.f0.size(); i++) {
+            argRegs.add(n.f1.f0.elementAt(i).accept(this));
+        }
+        return "null";
     }
 
     /**
@@ -673,7 +732,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(ExpressionTail n) throws Exception {
-        return super.visit(n);
+        return n.f0.accept(this);
     }
 
     /**
@@ -682,14 +741,30 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(ExpressionTerm n) throws Exception {
-        return super.visit(n);
+        return n.f1.accept(this);
+    }
+
+    /**
+     * f0 -> IntegerLiteral()
+     * | TrueLiteral()
+     * | FalseLiteral()
+     * | Identifier()
+     * | ThisExpression()
+     * | ArrayAllocationExpression()
+     * | AllocationExpression()
+     * | BracketExpression()
+     */
+    @Override
+    public String visit(PrimaryExpression n) throws Exception {
+        System.err.println("PrimaryExpression");
+        return n.f0.accept(this);
     }
 
     public void makeVtable() throws Exception{
         boolean first = true;
         for (Map.Entry<String, Offset> e: STVisitor.offsets.entrySet()) {
 
-            fw.write("@." + e.getKey() + "_vtable = global [" + e.getValue().methOff.size() + "x i8*] [");
+            fw.write("@." + e.getKey() + "_vtable = global [" + e.getValue().methOff.size() + " x i8*] [");
 
             for (Map.Entry<String, Integer> m: e.getValue().methOff.entrySet()) {
                 String methName = m.getKey();
@@ -706,7 +781,8 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
                 fw.write(")* @" + e.getValue().className + "." + methName + " to i8*)");
             }
             first = true;
-            fw.write("]\n");
+            fw.write("]\n\n\n");
         }
     }
+
 }
