@@ -30,7 +30,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
 
     private static ArrayList<String> state = new ArrayList<>();
     private static FileWriter fw;
-    private static int regCounter=-1, ifCounter=-1, loopCounter=-1, arrCounter=-1, oobCounter=-1;
+    private static int regCounter=-1, ifCounter=-1, loopCounter=-1, arrCounter=-1, oobCounter=-1, andCounter;
 
     private static ArrayList<String> argRegs = new ArrayList<>();
 
@@ -57,6 +57,11 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     static public String getNewOob(){
         oobCounter++;
         return "oob" + oobCounter;
+    }
+
+    static public String getNewAnd(){
+        andCounter++;
+        return "andclause" + andCounter;
     }
 
     static public void setFw(String str) throws Exception{
@@ -140,7 +145,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      * f5 -> "}"
      */
     public String visit(ClassDeclaration n) throws Exception{
-        System.err.println("in class");
+        //System.err.println("in class");
         state.add(n.f1.f0.tokenImage);
 //        go only to method declarations
         n.f4.accept(this);
@@ -161,7 +166,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(ClassExtendsDeclaration n) throws Exception{
-        System.err.println("in class extends");
+        //System.err.println("in class extends");
         state.add(n.f1.f0.tokenImage);
 //        go only to method declarations
         n.f6.accept(this);
@@ -188,7 +193,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     @Override
     public String visit(MethodDeclaration n) throws Exception{
         regCounter = -1;
-        System.err.println("in method");
+        //System.err.println("in method");
         state.add(n.f2.f0.tokenImage);
         String methType = Type.getName(STVisitor.getMethType(state.get(0), state.get(1)));
 
@@ -225,7 +230,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         fw.write("\n\n    ret " + methType + " " + reg + "\n}\n");
 
         state.remove(n.f2.f0.tokenImage);
-        System.err.println("leaving method");
+        //System.err.println("leaving method");
         return "null";
     }
 
@@ -236,7 +241,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(FormalParameter n) throws Exception{
-        System.err.println("in parameters");
+        //System.err.println("in parameters");
         fw.write(", " + Type.getName(STVisitor.getVarType(state.get(0), state.get(1), n.f1.f0.tokenImage)) + " %." + n.f1.f0.tokenImage);
         return "null";
     }
@@ -248,9 +253,12 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(VarDeclaration n) throws Exception {
-        System.err.println("in vars");
-        String varType = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), n.f1.f0.tokenImage));
+        //System.err.println("in vars");
+        String varName = n.f1.f0.tokenImage;
+        String varType = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), varName));
+
         fw.write("    %" + n.f1.f0.tokenImage + " = alloca " + varType + "\n");
+
         return "null";
     }
 
@@ -263,9 +271,20 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     @Override
     public String visit(AssignmentStatement n) throws Exception {
         String reg = n.f2.accept(this);
-        String ident = n.f0.f0.tokenImage;
-        String type = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), ident));
-        fw.write("      store " + type + " " + reg + ", " + type + "* %" + ident + "\n");
+        String varName = n.f0.f0.tokenImage;
+        String type = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), varName));
+        if(STVisitor.checkClassVars(state.get(0), varName) == null) {
+            fw.write("      store " + type + " " + reg + ", " + type + "* %" + varName + "\n\n");
+        }else{
+            String reg1 = getNewVar();
+            String reg2 = getNewVar();
+            int off = STVisitor.offsets.get(state.get(0)).varOff.get(varName) + 8;
+
+            fw.write("      " + reg1 + " = getelementptr i8, i8* %this, i32 " + off + "\n" +
+                    "       " + reg2 + " = bitcast i8* " + reg1 + " to " + type + "*\n" +
+                    "      store " + type + " " + reg + ", " + type + "* " + reg2 + "\n\n"
+            );
+        }
         return "null";
     }
 
@@ -279,7 +298,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
     @Override
     public String visit(PrintStatement n) throws Exception {
         String reg = n.f2.accept(this);
-        fw.write("      call void (i32) @print_int(i32 "+  reg +")\n");
+        fw.write("      call void (i32) @print_int(i32 "+  reg +")\n\n");
         return "null";
     }
 
@@ -361,19 +380,33 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(Identifier n) throws Exception {
-        System.err.println("Identifier");
+        //System.err.println("Identifier");
 
-        String var = getNewVar();
-        String ident = n.f0.tokenImage;
-        System.err.println(state.get(0) + " " + state.get(1) + " " + ident);
-        String type = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), ident));
+        String varName = n.f0.tokenImage;
+//        System.err.println(state.get(0) + " " + state.get(1) + " " + ident);
+        String type = Type.getName(STVisitor.getVarType(state.get(0), state.get(1), varName));
         if(state.size()>2){
             state.remove(2);
-            state.add(STVisitor.getVarType(state.get(0), state.get(1), ident));
+            state.add(STVisitor.getVarType(state.get(0), state.get(1), varName));
         }
 
-        fw.write("      " + var + " = load " + type + ", " + type + "* %" + ident + "\n");
-        return var;
+        if(STVisitor.checkClassVars(state.get(0), varName) == null) {
+            String reg1 = getNewVar();
+            fw.write("      " + reg1 + " = load " + type + ", " + type + "* %" + varName + "\n");
+            return reg1;
+        }else{
+            String reg1 = getNewVar();
+            String reg2 = getNewVar();
+            String reg3 = getNewVar();
+            int off = STVisitor.offsets.get(state.get(0)).varOff.get(varName) + 8;
+
+            fw.write("      " + reg1 + " = getelementptr i8, i8* %this, i32 " + off + "\n" +
+                    "       " + reg2 + " = bitcast i8* " + reg1 + " to " + type + "*\n" +
+                    "       " + reg3 + " = load " + type + ", " + type + "* " + reg2 + "\n"
+            );
+            return reg3;
+        }
+
     }
 
     /**
@@ -449,7 +482,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(AllocationExpression n) throws Exception {
-        System.err.println("Allocation");
+        //System.err.println("Allocation");
         String reg1 = getNewVar();
         String reg2 = getNewVar();
         String reg3 = getNewVar();
@@ -478,7 +511,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(ArrayAllocationExpression n) throws Exception {
-        System.err.println("ArrayAllocation");
+        //System.err.println("ArrayAllocation");
         String reg1 = n.f3.accept(this);
         String reg2 = getNewVar();
         String reg3 = getNewVar();
@@ -560,7 +593,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         String oob2 = getNewOob();
         String oob3 = getNewOob();
 
-        fw.write("      " + reg3 + "load i32, i32* " + reg1 + "\n" +
+        fw.write("      " + reg3 + " = load i32, i32* " + reg1 + "\n" +
                 "       " + reg4 + " = icmp ult i32 " + reg2 + ", " + reg3 + "\n" +
                 "       br i1 " + reg4 + ",  label %" + oob1 + ", label %" + oob2 + "\n" +
                 "\n       " + oob1 + ":\n" +
@@ -581,7 +614,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(ThisExpression n) throws Exception {
-        System.err.println("This Expression");
+        //System.err.println("This Expression");
 
         if(state.size()>2){
             state.remove(2);
@@ -608,11 +641,43 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      * f1 -> "&&"
      * f2 -> Clause()
      */
-//    @Override
-//    public String visit(AndExpression n) throws Exception {
-//
-//    }
+    @Override
+    public String visit(AndExpression n) throws Exception {
+        String reg1 = n.f0.accept(this);
+        String reg3 = getNewVar();
 
+        String and1 = getNewAnd();
+        String and2 = getNewAnd();
+        String and3 = getNewAnd();
+        String and4 = getNewAnd();
+
+        fw.write("      br label %" + and1 + "\n\n" +
+                "       " + and1 + ":\n" +
+                "       br i1 " + reg1 + ", label %" + and1 + ", label %" + and4 + "\n" +
+                "       " + and2 + ":\n"
+        );
+
+        String reg2 = n.f2.accept(this);
+
+        fw.write("      br label %" + and3 + "\n\n" +
+                "       " + and3 + ":\n" +
+                "       br label %" + and4 + "\n\n" +
+                "       " + and4 + ":\n" +
+                "       " + reg3 + " = phi i1 [ 0, %" + and1 + " ], [ " + reg2 + ", %" + and3 + " ]\n"
+        );
+        return reg3;
+    }
+//%c = phi i32 [%a, %lb1], [%b, %lb2]
+
+
+    /**
+     * f0 -> NotExpression()
+     * | PrimaryExpression()
+     */
+    @Override
+    public String visit(Clause n) throws Exception {
+        return n.f0.accept(this);
+    }
 
     /**
      * f0 -> AndExpression()
@@ -666,11 +731,11 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(MessageSend n) throws Exception {
-        System.err.println("MessageSend");
-        System.err.println(state.size());
+        //System.err.println("MessageSend");
+        //System.err.println(state.size());
         state.add("1");
         String reg1 = n.f0.accept(this);
-        System.err.println(state.get(2));
+        //System.err.println(state.get(2));
         String className = state.remove(2);
 
         String reg3 = getNewVar();
@@ -683,8 +748,8 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         n.f4.accept(this);
 
         String methName = n.f2.f0.tokenImage;
-        System.err.println(className + " " + methName + " ");
-        int off = (STVisitor.offsets.get(className).methOff.isEmpty() ? 0 : STVisitor.offsets.get(className).methOff.get(methName) / 8 - 1);
+        //System.err.println(className + " " + methName + " ");
+        int off = (STVisitor.offsets.get(className).methOff.isEmpty() ? 0 : STVisitor.offsets.get(className).methOff.get(methName) / 8);
         String methType = Type.getName(STVisitor.getMethType(className, methName));
 
         fw.write("      " + reg3 + " = bitcast i8* " + reg1 + " to i8***\n" +
@@ -701,7 +766,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
         }
 
         fw.write(")*\n" +
-                "       " + reg8 + " = call " + methType + " " + reg7 + "(i8* %this"
+                "       " + reg8 + " = call " + methType + " " + reg7 + "(i8* " + reg1
         );
 
         for (String type: STVisitor.getArgsType(className, methName)) {
@@ -710,7 +775,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
             fw.write(", " + type + " " + reg);
         }
 
-        fw.write(")\n");
+        fw.write(")\n\n");
         return reg8;
     }
 
@@ -756,7 +821,7 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
      */
     @Override
     public String visit(PrimaryExpression n) throws Exception {
-        System.err.println("PrimaryExpression");
+        //System.err.println("PrimaryExpression");
         return n.f0.accept(this);
     }
 
@@ -781,8 +846,9 @@ public class LLVMVisitor extends GJNoArguDepthFirst<String> {
                 fw.write(")* @" + e.getValue().className + "." + methName + " to i8*)");
             }
             first = true;
-            fw.write("]\n\n\n");
+            fw.write("]\n");
         }
+        fw.write("\n\n");
     }
 
 }

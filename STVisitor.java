@@ -202,8 +202,13 @@ public class STVisitor extends GJDepthFirst<String, HashMap<String, ArrayList<Ob
 //                raise the VarIndex counter
                 map.get(className).set(0, map.get(className).get(0) + bytes);
 
+
                 it2.remove();
             }
+
+//            Add the ending size for LLVM reasons
+//            System.err.println("----------------" + map.get(className).get(0) + "------------");
+            off.varOff.put("endSize", map.get(className).get(0));
 
 //            Find method offsets
             Iterator it3 = order.get(2).iterator();

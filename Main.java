@@ -38,7 +38,6 @@ class Main {
                 MiniJavaParser parser3 = new MiniJavaParser(fis3);
                 LLVMVisitor eval3 = new LLVMVisitor();
                 Goal root3 = parser3.Goal();
-//                LLVMVisitor.setFw("~/Documents/Compilers/compilers2/minijava/test_files/my_results/"+arg+".ll");
                 LLVMVisitor.setFw(arg);
                 root3.accept(eval3);
                 LLVMVisitor.unsetFw();
